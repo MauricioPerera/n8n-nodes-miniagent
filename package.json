@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-miniagent",
-  "version": "0.1.0",
-  "description": "Lightweight AI Agent node for n8n - zero dependencies, built-in memory, multi-LLM support",
+  "version": "0.2.0",
+  "description": "Lightweight AI Agent node for n8n - zero dependencies, built-in memory, RAG support, multi-LLM",
   "author": {
     "name": "Mauricio Perera",
     "email": "mauricio.perera@gmail.com"
@@ -25,25 +25,23 @@
     "gemini",
     "claude",
     "gpt",
-    "chatbot"
+    "chatbot",
+    "rag",
+    "embeddings",
+    "vector"
   ],
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && shx cp nodes/MiniAgent/*.svg dist/nodes/MiniAgent/",
     "dev": "tsc --watch",
-    "lint": "eslint nodes credentials --ext .ts",
-    "lintfix": "eslint nodes credentials --ext .ts --fix",
+    "lint": "eslint nodes --ext .ts",
+    "lintfix": "eslint nodes --ext .ts --fix",
     "prepublishOnly": "npm run build && npm run lint",
     "release": "npm run build && npm publish --access public"
   },
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "credentials": [
-      "dist/credentials/GeminiApi.credentials.js",
-      "dist/credentials/AnthropicApi.credentials.js",
-      "dist/credentials/OpenAiCompatibleApi.credentials.js"
-    ],
     "nodes": [
       "dist/nodes/MiniAgent/MiniAgent.node.js"
     ]

@@ -57,6 +57,11 @@ export class AnthropicProvider implements LLMProvider {
 		this.apiKey = apiKey;
 	}
 
+	supportsEmbeddings(): boolean {
+		// Anthropic does not have an embeddings API
+		return false;
+	}
+
 	async chat(
 		messages: Message[],
 		tools?: ToolDefinition[],

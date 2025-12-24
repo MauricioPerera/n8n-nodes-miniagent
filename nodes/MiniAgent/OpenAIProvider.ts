@@ -1,7 +1,7 @@
 /**
  * OpenAI Compatible API Provider
  * Works with: OpenAI, OpenRouter, Groq, Together, Ollama, LM Studio, etc.
- * Uses the standard OpenAI chat completions format
+ * Uses the standard OpenAI chat completions and embeddings format
  */
 
 import type {
@@ -11,6 +11,7 @@ import type {
 	Message,
 	ToolDefinition,
 	ToolCall,
+	EmbeddingConfig,
 } from './LLMProvider';
 import { toOpenAITools } from './LLMProvider';
 
@@ -61,6 +62,25 @@ interface OpenAIResponse {
 	};
 }
 
+interface OpenAIEmbeddingResponse {
+	object: string;
+	data: Array<{
+		object: string;
+		index: number;
+		embedding: number[];
+	}>;
+	model: string;
+	usage: {
+		prompt_tokens: number;
+		total_tokens: number;
+	};
+	error?: {
+		message: string;
+		type: string;
+		code: string;
+	};
+}
+
 export class OpenAIProvider implements LLMProvider {
 	private apiKey: string;
 	private baseUrl: string;
@@ -69,6 +89,11 @@ export class OpenAIProvider implements LLMProvider {
 		this.apiKey = apiKey;
 		// Remove trailing slash if present
 		this.baseUrl = baseUrl.replace(/\/$/, '');
+	}
+
+	supportsEmbeddings(): boolean {
+		// Most OpenAI-compatible APIs support embeddings
+		return true;
 	}
 
 	async chat(
@@ -122,6 +147,48 @@ export class OpenAIProvider implements LLMProvider {
 		}
 
 		return this.parseResponse(data);
+	}
+
+	async embed(
+		texts: string[],
+		config?: EmbeddingConfig,
+	): Promise<number[][]> {
+		const model = config?.model || 'text-embedding-3-small';
+		const url = `${this.baseUrl}/embeddings`;
+
+		const body: Record<string, unknown> = {
+			model,
+			input: texts,
+		};
+
+		if (config?.dimensions) {
+			body.dimensions = config.dimensions;
+		}
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.apiKey}`,
+			},
+			body: JSON.stringify(body),
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`OpenAI Embeddings API error: ${response.status} - ${errorText}`);
+		}
+
+		const data = (await response.json()) as OpenAIEmbeddingResponse;
+
+		if (data.error) {
+			throw new Error(`OpenAI Embeddings API error: ${data.error.message}`);
+		}
+
+		// Sort by index and extract embeddings
+		return data.data
+			.sort((a, b) => a.index - b.index)
+			.map((item) => item.embedding);
 	}
 
 	private convertMessages(messages: Message[]): OpenAIMessage[] {

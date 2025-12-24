@@ -1,7 +1,7 @@
 /**
  * Gemini API Provider
  * Uses Google's Generative AI REST API directly (no SDK)
- * Supports function calling for tool use
+ * Supports function calling and embeddings
  */
 
 import type {
@@ -11,6 +11,7 @@ import type {
 	Message,
 	ToolDefinition,
 	ToolCall,
+	EmbeddingConfig,
 } from './LLMProvider';
 import { generateToolCallId, toGeminiTools } from './LLMProvider';
 
@@ -54,11 +55,35 @@ interface GeminiResponse {
 	};
 }
 
+interface GeminiEmbeddingResponse {
+	embedding?: {
+		values: number[];
+	};
+	error?: {
+		message: string;
+		code: number;
+	};
+}
+
+interface GeminiBatchEmbeddingResponse {
+	embeddings?: Array<{
+		values: number[];
+	}>;
+	error?: {
+		message: string;
+		code: number;
+	};
+}
+
 export class GeminiProvider implements LLMProvider {
 	private apiKey: string;
 
 	constructor(apiKey: string) {
 		this.apiKey = apiKey;
+	}
+
+	supportsEmbeddings(): boolean {
+		return true;
 	}
 
 	async chat(
@@ -108,6 +133,87 @@ export class GeminiProvider implements LLMProvider {
 		}
 
 		return this.parseResponse(data);
+	}
+
+	async embed(
+		texts: string[],
+		config?: EmbeddingConfig,
+	): Promise<number[][]> {
+		const model = config?.model || 'text-embedding-004';
+
+		// Gemini supports batch embedding
+		if (texts.length === 1) {
+			return [await this.embedSingle(texts[0], model)];
+		}
+
+		// For multiple texts, use batch endpoint
+		const url = `${GEMINI_API_BASE}/models/${model}:batchEmbedContents?key=${this.apiKey}`;
+
+		const requests = texts.map((text) => ({
+			model: `models/${model}`,
+			content: {
+				parts: [{ text }],
+			},
+		}));
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ requests }),
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`Gemini Embeddings API error: ${response.status} - ${errorText}`);
+		}
+
+		const data = (await response.json()) as GeminiBatchEmbeddingResponse;
+
+		if (data.error) {
+			throw new Error(`Gemini Embeddings API error: ${data.error.message}`);
+		}
+
+		if (!data.embeddings) {
+			throw new Error('Gemini Embeddings API returned no embeddings');
+		}
+
+		return data.embeddings.map((e) => e.values);
+	}
+
+	private async embedSingle(text: string, model: string): Promise<number[]> {
+		const url = `${GEMINI_API_BASE}/models/${model}:embedContent?key=${this.apiKey}`;
+
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				model: `models/${model}`,
+				content: {
+					parts: [{ text }],
+				},
+			}),
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`Gemini Embeddings API error: ${response.status} - ${errorText}`);
+		}
+
+		const data = (await response.json()) as GeminiEmbeddingResponse;
+
+		if (data.error) {
+			throw new Error(`Gemini Embeddings API error: ${data.error.message}`);
+		}
+
+		if (!data.embedding) {
+			throw new Error('Gemini Embeddings API returned no embedding');
+		}
+
+		return data.embedding.values;
 	}
 
 	private convertMessages(messages: Message[]): GeminiContent[] {

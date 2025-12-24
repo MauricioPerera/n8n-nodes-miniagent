@@ -1,6 +1,7 @@
 /**
  * Common types and interfaces for LLM providers
  * All providers implement the same interface for easy swapping
+ * Supports both chat and embeddings
  */
 
 // Message types for conversation history
@@ -53,20 +54,35 @@ export interface LLMConfig {
 	topP?: number;
 }
 
+// Configuration for embedding requests
+export interface EmbeddingConfig {
+	model?: string;
+	dimensions?: number;
+}
+
 // Common interface for all LLM providers
 export interface LLMProvider {
 	/**
 	 * Send a chat request to the LLM
-	 * @param messages - Conversation history
-	 * @param tools - Available tools for the LLM to call
-	 * @param config - Model configuration
-	 * @returns LLM response with content and/or tool calls
 	 */
 	chat(
 		messages: Message[],
 		tools?: ToolDefinition[],
 		config?: LLMConfig,
 	): Promise<LLMResponse>;
+
+	/**
+	 * Generate embeddings for text (optional - not all providers support this)
+	 */
+	embed?(
+		texts: string[],
+		config?: EmbeddingConfig,
+	): Promise<number[][]>;
+
+	/**
+	 * Check if this provider supports embeddings
+	 */
+	supportsEmbeddings?(): boolean;
 }
 
 // Helper to generate unique tool call IDs
@@ -104,4 +120,26 @@ export function toAnthropicTools(tools: ToolDefinition[]): object[] {
 		description: tool.description,
 		input_schema: tool.parameters,
 	}));
+}
+
+// Normalize a vector to unit length
+export function normalizeVector(vector: number[]): number[] {
+	const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+	if (magnitude === 0) return vector;
+	return vector.map((val) => val / magnitude);
+}
+
+// Calculate cosine similarity between two vectors
+export function cosineSimilarity(a: number[], b: number[]): number {
+	if (a.length !== b.length) return 0;
+	let dotProduct = 0;
+	let normA = 0;
+	let normB = 0;
+	for (let i = 0; i < a.length; i++) {
+		dotProduct += a[i] * b[i];
+		normA += a[i] * a[i];
+		normB += b[i] * b[i];
+	}
+	const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+	return denominator === 0 ? 0 : dotProduct / denominator;
 }
