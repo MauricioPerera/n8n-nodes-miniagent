@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-miniagent",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Lightweight AI Agent node for n8n - zero dependencies, built-in memory, RAG support, multi-LLM",
   "author": {
     "name": "Mauricio Perera",
@@ -49,8 +49,8 @@
   "files": [
     "dist"
   ],
-  "dependencies": {},
   "devDependencies": {
+    "@n8n/scan-community-package": "^0.9.0",
     "@types/node": "^20.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^8.57.0",

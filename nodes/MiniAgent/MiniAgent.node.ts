@@ -23,6 +23,7 @@ export class MiniAgent implements INodeType {
 		icon: 'file:MiniAgent.node.svg',
 		group: ['transform'],
 		version: 1,
+		usableAsTool: true,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'Lightweight AI Agent - zero dependencies, built-in memory, multi-LLM support',
 		defaults: {

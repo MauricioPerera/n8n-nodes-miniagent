@@ -26,23 +26,20 @@ const memoryBuffer: Map<string, {
 	lastAccess: number;
 }> = new Map();
 
-// Cleanup old buffers every 10 minutes (remove if unused for 1 hour)
+// TTL for buffer entries (remove if unused for 1 hour)
 const BUFFER_TTL = 60 * 60 * 1000; // 1 hour
-const CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
-let cleanupTimer: ReturnType<typeof setInterval> | null = null;
-
-function startCleanupTimer(): void {
-	if (cleanupTimer) return;
-
-	cleanupTimer = setInterval(() => {
-		const now = Date.now();
-		for (const [key, value] of memoryBuffer.entries()) {
-			if (now - value.lastAccess > BUFFER_TTL) {
-				memoryBuffer.delete(key);
-			}
+/**
+ * Lazy cleanup of expired buffers (called on access instead of using timers)
+ * n8n Cloud doesn't allow setInterval, so we clean up on each access
+ */
+function cleanupExpiredBuffers(): void {
+	const now = Date.now();
+	for (const [key, value] of memoryBuffer.entries()) {
+		if (now - value.lastAccess > BUFFER_TTL) {
+			memoryBuffer.delete(key);
 		}
-	}, CLEANUP_INTERVAL);
+	}
 }
 
 export class MemoryManager {
@@ -52,11 +49,6 @@ export class MemoryManager {
 	constructor(config: MemoryConfig, executeFunctions?: IExecuteFunctions) {
 		this.config = config;
 		this.executeFunctions = executeFunctions;
-
-		// Start cleanup timer for buffer mode
-		if (config.type === 'buffer') {
-			startCleanupTimer();
-		}
 	}
 
 	/**
@@ -127,6 +119,9 @@ export class MemoryManager {
 
 	// Buffer storage methods
 	private loadFromBuffer(): Message[] {
+		// Lazy cleanup of expired buffers on access
+		cleanupExpiredBuffers();
+
 		const key = this.getKey();
 		const entry = memoryBuffer.get(key);
 

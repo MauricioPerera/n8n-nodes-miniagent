@@ -41,21 +41,20 @@ const ragStores: Map<string, {
 	lastAccess: number;
 }> = new Map();
 
-// Cleanup old stores every 10 minutes
+// TTL for RAG store entries (remove if unused for 1 hour)
 const STORE_TTL = 60 * 60 * 1000; // 1 hour
-let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-function startCleanupTimer(): void {
-	if (cleanupTimer) return;
-
-	cleanupTimer = setInterval(() => {
-		const now = Date.now();
-		for (const [key, value] of ragStores.entries()) {
-			if (now - value.lastAccess > STORE_TTL) {
-				ragStores.delete(key);
-			}
+/**
+ * Lazy cleanup of expired stores (called on access instead of using timers)
+ * n8n Cloud doesn't allow setInterval, so we clean up on each access
+ */
+function cleanupExpiredStores(): void {
+	const now = Date.now();
+	for (const [key, value] of ragStores.entries()) {
+		if (now - value.lastAccess > STORE_TTL) {
+			ragStores.delete(key);
 		}
-	}, 10 * 60 * 1000);
+	}
 }
 
 export class RAGMemory {
@@ -81,14 +80,15 @@ export class RAGMemory {
 
 		const workflowId = executeFunctions?.getWorkflow().id ?? 'default';
 		this.storeKey = `${workflowId}__${config.sessionId}`;
-
-		startCleanupTimer();
 	}
 
 	/**
 	 * Gets or creates the vector store for this session
 	 */
 	private getStore(): { store: VectorStore; messages: Message[] } {
+		// Lazy cleanup of expired stores on access
+		cleanupExpiredStores();
+
 		let entry = ragStores.get(this.storeKey);
 
 		if (!entry) {
